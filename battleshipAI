@@ -1,0 +1,288 @@
+#include<iostream>
+#include<cstdlib>
+#include<ctime>
+#include<fstream>
+#include<windows.h>
+using namespace std;
+const int size = 5;
+const int ship = 3;
+const int turns = 10;
+HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);// for coloyrs
+void initializegrid(char grid[size][size], char fill = '~') // here we make a generalgrid with a constant arugemnt that its filled with water
+ {
+    for(int i = 0; i < size; i++){
+        for(int j = 0; j < size; j++){
+            grid[i][j] = fill;
+        }
+    }
+}
+void initializeShips(bool ships[size][size], bool fill = false) {
+    for(int i = 0; i < size; i++){
+        for(int j = 0; j < size; j++){
+            ships[i][j] = fill;
+        }
+    }
+}
+void displaygrid(char grid[size][size], bool hideships = false) {
+    SetConsoleTextAttribute(hConsole, 16);
+    cout << "  0  1  2  3  4\n";
+    for (int i = 0; i < size; i++) {
+        cout << i << " ";
+        for (int j = 0; j < size; j++) 
+		{
+            if(hideships && grid[i][j] == 'S') 
+			cout << "~  ";
+            else
+			 cout << grid[i][j] << "  ";
+        }
+        cout << endl;
+    }
+    SetConsoleTextAttribute(hConsole, 14);
+}
+void placeshipsai(bool ships[size][size]) {
+    int y = 0;
+    while (y < ship) {
+        int a = rand() % size;
+        int b = rand() % size;
+        if (!ships[a][b]) {
+            ships[a][b] = true;
+            y++;
+        }
+    }
+}
+void placeshipsplayer(bool ships[size][size], char grid[size][size]) {
+    cout << "Put your 3 ships somewhere.\n";
+    int placed = 0;
+    while (placed < ship) {
+    	SetConsoleTextAttribute(hConsole, 12);
+        int x, y;
+        cout << "Ship " << placed+1 << " pos (x y): ";
+        cin >> x >> y;
+        if (x >= 0 && x < size && y >= 0 && y < size && !ships[x][y])
+		 { 
+            ships[x][y] = true;
+            grid[x][y] = 'S';
+            placed++;
+        } else {
+            cout << "Nope. Try diff pos.\n";
+        }
+        displaygrid(grid);
+    }
+}
+
+bool checkallsunk(bool ships[size][size]) {
+    for (int i = 0; i < size; i++)
+	{
+        for (int j = 0; j < size; j++)
+		{
+            if (ships[i][j]) 
+			return false;
+        }
+    }
+    return true;
+}
+void typing(string text, int delay = 50) {
+    for (int i = 0; i < text.length(); i++) {
+        cout << text[i] << flush;
+        Sleep(delay);
+    }
+    cout << endl;
+}
+void displayhelp() {
+    typing("Game rules:");
+    cout << "1. 5x5 grid.\n";
+    cout << "2. You n AI have 3 ships.\n";
+    cout << "3. Shoot by giving coords.\n";
+    cout << "4. X = boom, O = miss.\n";
+    cout << "5. 10 turns.\n";
+    cout << "6. Sink all or more hits wins.\n";
+    cout << "7. Game ends if all ships dead.\n";
+}
+
+void saveToFile(string line)
+ {
+    ofstream out("GameResults.txt");
+    out << line << endl;
+    out.close();
+}
+bool smartai(char grid[size][size], bool ships[size][size], int &lasthitX, int &lasthitY, bool &haslasthit) {
+    int attackX, attackY;
+    if (haslasthit) {
+        int directions[4][2] = {{1,0}, {-1,0}, {0,1}, {0,-1}};
+        for (int i = 0; i < 4; i++) {
+            int dx = lasthitX + directions[i][0];
+            int dy = lasthitY + directions[i][1];
+            if (dx >= 0 && dx < size && dy >= 0 && dy < size && grid[dx][dy] == '~') {
+                attackX = dx;
+                attackY = dy;
+                goto attack;
+            }
+        }
+        haslasthit = false;
+    }
+    do {
+        attackX = rand() % size;
+        attackY = rand() % size;
+    }
+	 while (grid[attackX][attackY] != '~'&& grid[attackX][attackY] != 'S');
+
+attack:
+    if (ships[attackX][attackY]) {
+        grid[attackX][attackY] = 'X';
+        ships[attackX][attackY] = false;
+        lasthitX = attackX;
+        lasthitY = attackY;
+        haslasthit = true;
+        cout << "(" << attackX << ", " << attackY << ")\n";
+        Beep(800, 3000);
+        saveToFile("AI hit ");
+        return true;
+    } else {
+        grid[attackX][attackY] = 'O';
+        haslasthit = false;
+        cout << "(" << attackX << ", " << attackY << ")\n";
+        Beep(100, 3000);
+        saveToFile("AI miss");
+        return false;
+    }
+}
+void flicker(int times = 3, int delay = 200) {
+    for (int i = 0; i < times; i++) {
+        system("cls");
+        Sleep(delay);
+        SetConsoleTextAttribute(hConsole, 14);
+        cout << "\n\n\n\n\t\t\t***** BATTLESHIP VS AI *****\n";
+        Sleep(delay);
+    }
+    system("cls");
+}
+void GAME() {
+    srand(time(0));
+    flicker();
+
+    char playergrid[size][size], aigrid[size][size];
+    bool playerships[size][size], aiships[size][size];
+    int lasthitX = -1, lasthitY = -1;
+    bool haslasthit = false;
+    initializegrid(playergrid);
+    initializegrid(aigrid);
+    initializeShips(playerships);
+    initializeShips(aiships);
+    placeshipsplayer(playerships, playergrid);
+    placeshipsai(aiships);
+    int T = 1, PH = 0, AH = 0;
+    while (T <= turns) {
+        system("cls");
+        cout << "\n--- Turn " << T << " ---\n";
+        cout << "Your field:\n";
+        displaygrid(playergrid);
+        cout << "AI field:\n";
+        displaygrid(aigrid, true);
+        	int x, y;
+		while (true) {
+		    cout << "Your move (x y): ";
+		    if (!(cin >> x >> y)) {
+		        cin.clear();
+		        cin.ignore(1000, '\n');
+		        cout << "Invalid input. Enter numbers! not numbers ah\n";
+		        Sleep(2000);
+		        continue;
+		    }
+		    if (x < 0 || x >= size || y < 0 || y >= size) {
+		        cout << "Out of range. 0 se 4 tak krna ha \n";
+		        Sleep(2000);
+		        continue;
+		    }
+		    if (aigrid[x][y] != '~') {
+		        cout << "Already hit there.\n";
+		        Sleep(2000);
+		        continue;
+		    }
+		    break;
+		}
+		
+		if (aiships[x][y]) {
+		    aigrid[x][y] = 'X';
+		    aiships[x][y] = false;
+		    cout << " YOU HIT YAYY CHIEF MARSHAL \n";
+		    Beep(800, 3000);
+		    PH++;
+		} else {
+		    aigrid[x][y] = 'O';
+		    cout << "Oops missed.\n";
+		    Beep(100, 3000);
+		}
+
+
+        if (checkallsunk(aiships)) {
+            cout << "YOU WON! Enemy sunk!\n";
+            break;
+        }
+
+        Sleep(900);
+        cout << "AI turn  \n";
+        if (smartai(playergrid, playerships, lasthitX, lasthitY, haslasthit)) {
+            cout << "AI got you!\n";
+            AH++;
+        } else {
+            cout << "AI missed.\n";
+        }
+         Sleep(700);
+        if (checkallsunk(playerships)) {
+            cout << "AI WINS! You got sunk!\n";
+            break;
+        }
+        T++;
+    }
+
+    cout << "GAME DONE.\n";
+    cout << "Your score: " << PH << " | AI score: " << AH << endl;
+    if (PH > AH) 
+	cout << "You won by score!\n";
+    else if (AH > PH) 
+	cout << "AI won by score!\n";
+    else 
+	cout << "It's a draw.\n";
+
+    ofstream war("GameResults.txt");
+    war << "\nGame Done\nPlayer: " << PH << "\nAI: " << AH << "\n";
+    if (checkallsunk(aiships)) 
+	war << "Player wins!\n";
+    else if (checkallsunk(playerships)) 
+	war << "AI wins!\n";
+    else if (PH > AH) war << "Player wins by score!\n";
+    else if (AH > PH) war << "AI wins by score!\n";
+    else war << "Draw game\n";
+    war.close();
+
+    cout << "Saved to Game Results.txt\n";
+}
+void setFontSize(int size) {
+    CONSOLE_FONT_INFOEX cfi;
+    cfi.cbSize = sizeof(cfi);
+    cfi.nFont = 0;
+    cfi.dwFontSize.X = 0;
+    cfi.dwFontSize.Y = size; 
+    cfi.FontFamily = FF_DONTCARE;
+    cfi.FontWeight = FW_NORMAL;
+    wcscpy_s(cfi.FaceName, L"Consolas");  
+    SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &cfi);
+}
+
+int main() {
+    int x;
+     SetConsoleTextAttribute(hConsole, 11);
+      setFontSize(35);
+    do {
+        cout << "\n\n\n\n\t\t\tBattle Vs AI Game Menu:\n";
+        cout << "1. instructions \n2. Play the game \n3. Quit\nChoose one: > ";
+        cin >> x;
+        switch(x) {
+            case 1: displayhelp(); break;
+            case 2: GAME(); break;
+            case 3: cout << "Bye!\n"; break;
+            default: cout << "Wrong input.\n";
+        }
+    } while (x != 3);
+    return 0;
+}
